@@ -1,23 +1,23 @@
 """Base types."""
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+from collections.abc import Mapping
 from typing import Any, Union
 
-Context = dict[str, Any]
+from typing_extensions import Protocol, TypeAlias, runtime_checkable
+
+Context: TypeAlias = Mapping[str, Any]
 """Template/expression context"""
 
 
-class Evaluable(ABC):
+@runtime_checkable
+class Evaluable(Protocol):
     """Evaluable object."""
 
     @abstractmethod
-    def evaluate(self, **context: Any) -> Any:
+    def evaluate(self, context: Context) -> Any:
         """Evaluate this evaluable."""
         ...
 
 
-LiteralValueTypes = (int, float, bool, str)
-LiteralValue = Union[int, float, bool, str]
-"""Literal value types."""
-
-LiteralValueOrEvaluable = Union[LiteralValue, Evaluable]
-"""A literal value, or an :class:`Evaluable`."""
+ValueOrEvaluable: TypeAlias = Union[Evaluable, object]
+"""A value or evaluable type."""

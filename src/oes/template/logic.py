@@ -1,18 +1,15 @@
 """Logic objects."""
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, Any, Union
+import typing
+from collections.abc import Mapping, Sequence
+from typing import Any, Tuple, Union
 
 from attrs import frozen
+from typing_extensions import TYPE_CHECKING
 
-from oes.template import Expression
-from oes.template.types import (
-    Context,
-    Evaluable,
-    LiteralValueOrEvaluable,
-    LiteralValueTypes,
-)
+from oes.template.expression import Expression
+from oes.template.types import Context, Evaluable, ValueOrEvaluable
 
 if TYPE_CHECKING:
     from cattrs import Converter
@@ -22,114 +19,87 @@ if TYPE_CHECKING:
 class LogicAnd(Evaluable):
     """Logic AND."""
 
-    and_: Condition
+    and_: Sequence[ValueOrEvaluable] = ()
+    """The expressions."""
 
-    def evaluate(self, **context: Any) -> bool:
-        return all(_eval_condition(self.and_, context))
+    def evaluate(self, context: Context) -> Any:
+        """Evaluate the expression."""
+        return all(evaluate(c, context) for c in self.and_)
 
 
 @frozen
 class LogicOr(Evaluable):
     """Logic OR."""
 
-    or_: Condition
+    or_: Sequence[ValueOrEvaluable] = ()
+    """The expressions."""
 
-    def evaluate(self, **context: Any) -> bool:
-        return any(_eval_condition(self.or_, context))
-
-
-LogicExpression = Union[
-    LiteralValueOrEvaluable,
-    LogicAnd,
-    LogicOr,
-    None,
-]
-"""A logic expression.
-
-One of:
-  - A literal value (str, int, float, bool)
-  - An :class:`Evaluable` (i.e. a template expression)
-  - A :class:`LogicAnd`
-  - A :class:`LogicOr`
-  - ``None``
-"""
-
-Condition = Union[Sequence, LogicExpression]
-"""A single :class:`LogicExpression` or a sequence of them.
-
-Sequences are evaluated as an implicit logic AND of the items.
-"""
+    def evaluate(self, context: Context) -> Any:
+        """Evaluate the expression."""
+        return any(evaluate(c, context) for c in self.or_)
 
 
-def _as_iterable(expr: Condition) -> Iterable[Condition]:
-    """Turn scalars into an iterable of only that scalar."""
-    if isinstance(expr, Sequence) and not isinstance(expr, str):
-        yield from expr
-    else:
-        yield expr
+@frozen
+class LogicNot(Evaluable):
+    """Logic NOT."""
+
+    not_: ValueOrEvaluable
+    """The expression."""
+
+    def evaluate(self, context: Context) -> Any:
+        """Evaluate the expression."""
+        return not evaluate(self.not_, context)
 
 
-def _eval(obj: object, context: Context) -> Any:
-    """Return a literal value, or evaluate an evaluable."""
+def evaluate(obj: object, context: Context) -> object:
+    """Evaluate an evaluable or value."""
     if isinstance(obj, Evaluable):
-        return obj.evaluate(**context)
+        return obj.evaluate(context)
     else:
         return obj
 
 
-def _eval_condition(expr: Condition, context: Context) -> Iterable[Any]:
-    """Evaulate a scalar or sequence, yielding the results of each."""
-    for e in _as_iterable(expr):
-        yield _eval(e, context)
-
-
-def evaluate(cond: Condition, context: Context) -> bool:
-    """Evaluate a :class:`Condition`."""
-    return all(_eval_condition(cond, context))
-
-
-def structure_logic_expression(converter: Converter, v: object):  # noqa: CCR001
+def structure_value_or_evaluable(
+    c: Converter, v: object, t: object
+) -> ValueOrEvaluable:
+    """Structure an evaluable or value."""
     if isinstance(v, str):
-        # All strings are treated as template expressions
-        return converter.structure(v, Expression)
-    elif v is None or isinstance(v, LiteralValueTypes):
+        return c.structure(v, Expression)
+    elif (
+        isinstance(v, Mapping)
+        and len(v) == 1
+        and ("and" in v or "or" in v or "not" in v)
+    ):
+        return structure_logic(c, v, t)
+    else:
         return v
-    elif isinstance(v, dict) and "and" in v:
-        return structure_and(converter, v)
-    elif isinstance(v, dict) and "or" in v:
-        return structure_or(converter, v)
+
+
+def structure_logic(c: Converter, v: object, t: object) -> Evaluable:
+    """Structure a logic object."""
+    if isinstance(v, Mapping) and len(v) == 1:
+        if "and" in v:
+            exprs = c.structure(v["and"], Tuple[ValueOrEvaluable, ...])
+            return LogicAnd(exprs)
+        elif "or" in v:
+            exprs = c.structure(v["or"], Tuple[ValueOrEvaluable, ...])
+            return LogicOr(exprs)
+        elif "not" in v:
+            expr = c.structure(v["not_"], ValueOrEvaluable)
+            return LogicNot(expr)
+
+    raise ValueError(f"Invalid logic expression: {v}")
+
+
+def unstructure_logic(
+    converter: Converter, v: Union[LogicAnd, LogicOr, LogicNot]
+) -> dict[str, object]:
+    """Unstructure a logic object."""
+    if isinstance(v, LogicAnd):
+        return {"and": converter.unstructure(v.and_)}
+    elif isinstance(v, LogicOr):
+        return {"or": converter.unstructure(v.or_)}
+    elif isinstance(v, LogicNot):
+        return {"not": converter.unstructure(v.not_)}
     else:
-        raise TypeError(f"Invalid type: {v!r}")
-
-
-def structure_and(converter: Converter, v: object) -> LogicAnd:
-    if isinstance(v, dict) and "and" in v:
-        exprs = v["and"]
-    else:
-        exprs = v
-
-    return LogicAnd(structure_condition(converter, exprs))
-
-
-def structure_or(converter: Converter, v: object) -> LogicOr:
-    if isinstance(v, dict) and "or" in v:
-        exprs = v["or"]
-    else:
-        exprs = v
-
-    return LogicOr(structure_condition(converter, exprs))
-
-
-def structure_condition(converter: Converter, v: object):
-    if isinstance(v, Sequence) and not isinstance(v, str):
-        return tuple(structure_logic_expression(converter, c) for c in v)
-    else:
-        return structure_logic_expression(converter, v)
-
-
-def unstructure_and(converter: Converter, v: LogicAnd) -> dict:
-    return {"and": converter.unstructure(v.and_)}
-
-
-def unstructure_or(converter: Converter, v: LogicOr) -> dict:
-    return {"or": converter.unstructure(v.or_)}
+        typing.assert_never(v)

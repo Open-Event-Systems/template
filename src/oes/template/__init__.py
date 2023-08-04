@@ -1,42 +1,40 @@
 """OES Template Library"""
 
-from oes.template.env import default_jinja2_env, get_jinja2_env, jinja2_env_context
+from oes.template.env import get_jinja2_env, set_jinja2_env
 from oes.template.expression import (
     Expression,
     structure_expression,
     unstructure_expression,
 )
 from oes.template.logic import (
-    Condition,
     LogicAnd,
+    LogicNot,
     LogicOr,
     evaluate,
-    structure_condition,
-    unstructure_and,
-    unstructure_or,
+    structure_logic,
+    structure_value_or_evaluable,
+    unstructure_logic,
 )
 from oes.template.template import Template, structure_template, unstructure_template
-from oes.template.types import Context, Evaluable, LiteralValue, LiteralValueOrEvaluable
+from oes.template.types import Context, Evaluable, ValueOrEvaluable
 
 __all__ = [
-    "LiteralValue",
-    "Evaluable",
-    "LiteralValueOrEvaluable",
-    "Context",
-    "default_jinja2_env",
-    "jinja2_env_context",
     "get_jinja2_env",
-    "Template",
-    "structure_template",
-    "unstructure_template",
+    "set_jinja2_env",
     "Expression",
     "structure_expression",
     "unstructure_expression",
     "LogicAnd",
     "LogicOr",
-    "Condition",
+    "LogicNot",
     "evaluate",
-    "structure_condition",
-    "unstructure_and",
-    "unstructure_or",
+    "structure_value_or_evaluable",
+    "structure_logic",
+    "unstructure_logic",
+    "Template",
+    "structure_template",
+    "unstructure_template",
+    "Context",
+    "Evaluable",
+    "ValueOrEvaluable",
 ]
