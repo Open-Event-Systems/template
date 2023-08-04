@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "oes-template"
+name = "oes.template"
 version = "0.3.0"
 description = "Library for working with templates and expressions"
 authors = ["Wes <wes@anthronewengland.com>"]
