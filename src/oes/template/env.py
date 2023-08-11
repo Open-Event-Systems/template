@@ -7,8 +7,13 @@ from typing import ContextManager
 import jinja2
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 
+from oes.template.functions import age_filter, date_filter
+
 _default_jinja2_env = ImmutableSandboxedEnvironment()
 """The default Jinja2 environment."""
+
+_default_jinja2_env.filters["date"] = date_filter
+_default_jinja2_env.filters["age"] = age_filter
 
 _jinja2_env_context: ContextVar[jinja2.Environment] = ContextVar(
     "jinja2_env_context", default=_default_jinja2_env
