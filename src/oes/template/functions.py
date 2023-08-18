@@ -5,7 +5,7 @@ from typing import Union
 
 def date_filter(value: Union[str, date]) -> date:
     """Parse a string into a :obj:`date`."""
-    return value if isinstance(value, date) else date.fromisoformat(value)
+    return value if isinstance(value, date) else date.fromisoformat(str(value))
 
 
 def age_filter(
